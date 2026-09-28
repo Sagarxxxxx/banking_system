@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Banking System – Try it live</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+:root{--bg:#eef2f7;--panel:#fff;--ink:#14243b;--dim:#5b6b82;--line:#c9d3e0;--accent:#0a6fb8;--screen:#0f1b2d;--screen-ink:#e6eef8;--screen-dim:#7f93ad;--screen-accent:#5ec8f2;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a121e;--panel:#111c2d;--ink:#e6eef8;--dim:#8a9db7;--line:#22334d;--accent:#5ec8f2}}
+:root[data-theme="dark"]{--bg:#0a121e;--panel:#111c2d;--ink:#e6eef8;--dim:#8a9db7;--line:#22334d;--accent:#5ec8f2}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--ink);font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;display:flex;justify-content:center}
+main{width:100%;max-width:760px;height:100%;display:flex;flex-direction:column;padding:20px 16px 16px;gap:14px}
+h1{font-size:1.35rem;margin:0;font-weight:700;letter-spacing:-.01em}
+p.sub{margin:4px 0 0;color:var(--dim);font-size:.85rem;line-height:1.5;max-width:64ch}
+.term{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--screen);color:var(--screen-ink);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+#out{flex:1;overflow-y:auto;padding:14px 16px;font-size:.88rem;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+#out .u{color:var(--screen-accent)}
+#out .h{font-weight:700}
+#out .d{color:var(--screen-dim)}
+form{display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid #22334d;background:#0b1524}
+#lbl{color:var(--screen-accent);font-size:.85rem;white-space:pre-wrap;max-width:55%}
+#inp{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--screen-ink);font:inherit;font-size:.95rem}
+form:focus-within{box-shadow:inset 0 0 0 2px var(--screen-accent)}
+button{background:var(--screen-accent);color:#062033;border:0;border-radius:6px;font:inherit;font-weight:700;padding:7px 14px;cursor:pointer}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.foot{font-size:.75rem;color:var(--dim)}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Banking System</h1>
+    <p class="sub">A Python mini project, running in your browser. Create an account, then deposit, withdraw, transfer and more. Create two accounts to try transfers. Nothing is saved when you close the tab.</p>
+  </header>
+  <section class="term" aria-label="Banking terminal">
+    <div id="out" role="log" aria-live="polite"></div>
+    <form id="f"><span id="lbl"></span><input id="inp" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Your input"><button type="submit">Enter</button></form>
+  </section>
+  <div class="foot">Browser demo of the console app. Same menus and rules as banking_system.py.</div>
+</main>
+<script>
+const out=document.getElementById('out'),inp=document.getElementById('inp'),lbl=document.getElementById('lbl'),f=document.getElementById('f');
+let pending=null,secret=false,pmt='';
+function print(t='',c=''){const d=document.createElement('div');if(c)d.className=c;d.textContent=t;out.appendChild(d);out.scrollTop=out.scrollHeight}
+function ask(p,s=false){return new Promise(r=>{pmt=p;secret=s;lbl.textContent=p;inp.type=s?'password':'text';inp.value='';pending=r;inp.focus()})}
+f.addEventListener('submit',e=>{e.preventDefault();if(!pending)return;const v=inp.value;print(pmt+(secret?'••••':v),'u');const r=pending;pending=null;lbl.textContent='';inp.value='';r(v.trim())});
+
+const accounts={};
+const now=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`};
+function genNo(){let n;do{n=String(100000+Math.floor(Math.random()*900000))}while(accounts[n]);return n}
+const log=(a,t)=>accounts[a].history.push(`${now()} | ${t}`);
+const isPin=p=>/^\d{4}$/.test(p);
+async function amountPrompt(p){const v=parseFloat(await ask(p));if(isNaN(v)){print('Invalid amount.');return null}if(v<=0){print('Amount must be greater than zero.');return null}return v}
+
+async function createAccount(){
+  print('\n--- Create New Account ---','h');
+  const name=await ask('Enter your name: ');const phone=await ask('Enter your phone number: ');
+  let pin;while(true){pin=await ask('Set a 4-digit PIN: ',true);if(isPin(pin))break;print('Invalid PIN. Please enter exactly 4 digits.')}
+  const no=genNo();accounts[no]={name,phone,pin,balance:0,history:[]};log(no,'Account created');
+  print('\nAccount created successfully!');print('Your Account Number is: '+no,'h');print("Save this number, you'll need it to log in.");
+}
+async function login(){
+  print('\n--- Login ---','h');
+  const no=await ask('Enter Account Number: ');const pin=await ask('Enter PIN: ',true);const a=accounts[no];
+  if(a&&a.pin===pin){print(`\nWelcome back, ${a.name}!`);await accountMenu(no)}else print('Invalid Account Number or PIN.');
+}
+async function deposit(no){const v=await amountPrompt('\nEnter amount to deposit: ');if(v===null)return;accounts[no].balance+=v;log(no,`Deposit | +${v.toFixed(2)}`);print(`Deposited ${v.toFixed(2)} successfully.`);print(`New balance: ${accounts[no].balance.toFixed(2)}`)}
+async function withdraw(no){const v=await amountPrompt('\nEnter amount to withdraw: ');if(v===null)return;if(v>accounts[no].balance){print('Insufficient balance.');return}accounts[no].balance-=v;log(no,`Withdraw | -${v.toFixed(2)}`);print(`Withdrew ${v.toFixed(2)} successfully.`);print(`New balance: ${accounts[no].balance.toFixed(2)}`)}
+async function transfer(no){
+  const to=await ask("\nEnter receiver's Account Number: ");
+  if(to===no){print('You cannot transfer money to your own account.');return}
+  if(!accounts[to]){print('Receiver account does not exist.');return}
+  const v=await amountPrompt('Enter amount to transfer: ');if(v===null)return;
+  if(v>accounts[no].balance){print('Insufficient balance.');return}
+  accounts[no].balance-=v;accounts[to].balance+=v;log(no,`Transfer to ${to} | -${v.toFixed(2)}`);log(to,`Transfer from ${no} | +${v.toFixed(2)}`);
+  print(`Transferred ${v.toFixed(2)} to account ${to} successfully.`);print(`New balance: ${accounts[no].balance.toFixed(2)}`);
+}
+function history(no){print('\n--- Transaction History ---','h');const h=accounts[no].history;if(!h.length){print('No transactions yet.');return}h.forEach(x=>print(x))}
+async function changePin(no){
+  const old=await ask('\nEnter current PIN: ',true);if(old!==accounts[no].pin){print('Incorrect current PIN.');return}
+  const n=await ask('Enter new 4-digit PIN: ',true);const c=await ask('Confirm new PIN: ',true);
+  if(!isPin(n)){print('Invalid PIN format. Must be 4 digits.');return}
+  if(n!==c){print('PINs do not match.');return}
+  accounts[no].pin=n;log(no,'PIN changed');print('PIN changed successfully.');
+}
+async function accountMenu(no){
+  while(true){
+    print('\n===== ACCOUNT MENU =====','h');
+    ['1. Check Balance','2. Deposit','3. Withdraw','4. Transfer','5. Transaction History','6. Change PIN','7. Logout'].forEach(x=>print(x));
+    const c=await ask('Enter your choice (1-7): ');
+    if(c==='1')print(`\nYour current balance is: ${accounts[no].balance.toFixed(2)}`);
+    else if(c==='2')await deposit(no);
+    else if(c==='3')await withdraw(no);
+    else if(c==='4')await transfer(no);
+    else if(c==='5')history(no);
+    else if(c==='6')await changePin(no);
+    else if(c==='7'){print('Logging out...');break}
+    else print('Invalid choice. Please select a number between 1 and 7.');
+  }
+}
+async function mainMenu(){
+  while(true){
+    print('\n===== BANKING SYSTEM =====','h');
+    ['1. Create Account','2. Login','3. Exit'].forEach(x=>print(x));
+    const c=await ask('Enter your choice (1-3): ');
+    if(c==='1')await createAccount();
+    else if(c==='2')await login();
+    else if(c==='3'){print('Thank you for using the Banking System. Goodbye!');print('Type 1 to start again.','d')}
+    else print('Invalid choice. Please select a number between 1 and 3.');
+  }
+}
+mainMenu();
+</script>
+</body>
+</html>
